@@ -41,14 +41,9 @@ USER_ROLES = [
 
 CONTRAT_STATUTS = [
     'EN_COURS',
-    'TERMINE',
-    'ANNULE'
+    'TERMINE'
 ]
 
-PAYMENT_STATUS = [
-    'OUI',
-    'NON'
-]
 
 class User(BaseModel):
     username = CharField(unique=True)
@@ -72,11 +67,11 @@ class Client(BaseModel):
 
 class Contrat(BaseModel):
     client = ForeignKeyField(Client, backref='contrats')
-    status = CharField(choices=CONTRAT_STATUTS)
+    status = CharField(choices=CONTRAT_STATUTS, default=CONTRAT_STATUTS[0])
     start_date = DateTimeField()
     end_date = DateTimeField()
     price = IntegerField()
-    payment_received = CharField(choices=PAYMENT_STATUS)
+    payment_received = BooleanField(default=False)
     is_signed = BooleanField(default=False)
     contrat_author = ForeignKeyField(User, backref='contrats_author')
 
@@ -96,7 +91,8 @@ def update_contract_status(model_class, instance, created):
         end_date = instance.end_date
         today = datetime.now()
 
-        if end_date < today:
+        # Ajout de la condition pour vérifier si le paiement a été reçu
+        if end_date < today and instance.payment_received == True:
             contrat = instance
             contrat.status = 'TERMINE'
             contrat.save()
