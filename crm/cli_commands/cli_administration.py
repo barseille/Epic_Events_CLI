@@ -3,8 +3,8 @@ from crm.models.models import Contrat, Client
 from crm.cli_commands.cli_permissions import is_administration, load_user_info
 from peewee import DoesNotExist
 from crm.models.models import CONTRAT_STATUTS
-from crm.cli_commands.cli_input_validators import is_valid_date
-from datetime import datetime
+from crm.cli_commands.cli_input_validators import get_start_date, get_end_date, get_price
+
 
 
 app = typer.Typer()
@@ -55,32 +55,6 @@ def add_contrat():
         else:
             typer.echo("Réponse invalide. Répondez par 'Oui' ou 'Non'.")
 
-    while True:
-        start_date = typer.prompt("Date de début du contrat (YYYY-MM-DD)")
-        today = datetime.now().strftime('%Y-%m-%d')
-        if is_valid_date(start_date) and start_date >= today:
-            break
-        else:
-            typer.echo("La date de début doit être au format YYYY-MM-DD et ne peut pas être antérieure à aujourd'hui.")
-
-    while True:
-        end_date = typer.prompt("Date de fin du contrat (YYYY-MM-DD)")
-        today = datetime.now().strftime('%Y-%m-%d')
-        if is_valid_date(end_date) and end_date >= today:
-            break
-        else:
-            typer.echo("La date de fin doit être au format YYYY-MM-DD et ne peut pas être antérieure à aujourd'hui.")
-            
-    while True:
-        try:
-            price = typer.prompt("Prix", type=int)
-            if price >= 0:
-                break
-            else:
-                typer.echo("Le prix doit être un nombre entier positif.")
-        except ValueError:
-            typer.echo("Le prix doit être un nombre entier.")
-
 
     while True:
         payment_received = typer.prompt("Paiement reçu ? (Oui/Non)")
@@ -93,13 +67,14 @@ def add_contrat():
         else:
             typer.echo("Réponse invalide. Répondez par 'Oui' ou 'Non'.")
 
+
     try:
         contrat = Contrat.create(
             client=client,
             status=CONTRAT_STATUTS[0], # "EN_COURS" par défault
-            start_date=start_date,
-            end_date=end_date,
-            price=price,
+            start_date=get_start_date(),
+            end_date=get_end_date(),
+            price=get_price(),
             payment_received=payment_received,
             is_signed=is_signed,
             contrat_author=admin_id

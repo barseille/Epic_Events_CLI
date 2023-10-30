@@ -77,3 +77,38 @@ def get_phone():
         else:
             typer.echo("Le numéro de téléphone doit avoir au moins 10 chiffres.")
 
+
+
+def get_valid_date(prompt_message: str, date_type: str) -> str:
+    """Obtenir une date valide."""
+    while True:
+        date_str = typer.prompt(prompt_message)
+        today = datetime.now().strftime('%Y-%m-%d')
+        if is_valid_date(date_str) and date_str >= today:
+            return date_str
+        else:
+            typer.echo(f"La {date_type} doit être au format YYYY-MM-DD et ne peut pas être antérieure à aujourd'hui.")
+
+
+def get_start_date():
+    """Obtenir une date de début valide."""
+    return get_valid_date("Date de début du contrat (YYYY-MM-DD)", "date de début")
+
+
+def get_end_date():
+    """Obtenir une date de fin valide."""
+    return get_valid_date("Date de fin du contrat (YYYY-MM-DD)", "date de fin")
+
+
+
+def get_price():
+    """Obtenir un prix valide."""
+    while True:
+        try:
+            price = typer.prompt("Prix", type=int)
+            if price >= 0:
+                return price
+            else:
+                typer.echo("Le prix doit être un nombre entier positif.")
+        except ValueError:
+            typer.echo("Le prix doit être un nombre entier.")
