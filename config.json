@@ -1,6 +1,6 @@
 {
-    "user_id": 1,
-    "username": "commercial1",
-    "email": "commercial1@gmail.com",
-    "role": "COMMERCIAL"
+    "user_id": 3,
+    "username": "support1",
+    "email": "support1@gmail.com",
+    "role": "SUPPORT"
 }

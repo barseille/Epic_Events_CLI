@@ -29,7 +29,6 @@ def is_valid_date(date_str: str, format="%Y-%m-%d") -> bool:
         return False
 
 
-
 def get_username():
     """Obtenir un nom d'utilisateur valide."""
     while True:
