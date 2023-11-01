@@ -3,11 +3,19 @@ from crm.models.models import Contrat, Client
 from crm.cli_commands.cli_permissions import is_administration, load_user_info
 from peewee import DoesNotExist
 from crm.models.models import CONTRAT_STATUTS
-from crm.cli_commands.cli_input_validators import get_start_date, get_end_date, get_price
+from crm.cli_commands.cli_input_validators import get_start_date, get_end_date, get_price, get_boolean_input, get_valid_id
 
 
 
 app = typer.Typer()
+
+
+def is_client_not_under_contract(client: Client) -> bool:
+    existing_contract = Contrat.select().where(Contrat.client == client).exists()
+    if existing_contract:
+        typer.echo("Ce client est déjà sous contrat. Veuillez choisir un autre client.")
+        return False
+    return True
 
 @app.command()
 def add_contrat():
@@ -25,56 +33,25 @@ def add_contrat():
     if not is_administration():
         typer.echo("Accès refusé. Vous devez être dans l'équipe d'administration pour ajouter un contrat.")
         return
+    
+    client_id = get_valid_id(Client, "ID du client", is_client_not_under_contract)
+    client = Client.get_by_id(client_id)
 
-    while True:
-        client_id = typer.prompt("ID du client")
-        try:
-            client = Client.get_by_id(int(client_id))
-            
-            # Vérifier si le client est déjà sous contrat
-            existing_contract = Contrat.select().where(Contrat.client == client).exists()
-            
-            if existing_contract:
-                typer.echo("Ce client est déjà sous contrat. Veuillez choisir un autre client.")
-            else:
-                break
-        except ValueError:
-            typer.echo("Veuillez entrer un ID de client valide (nombre entier).")    
-                
-        except DoesNotExist:
-            typer.echo("Client non trouvé. Essayez encore.")
-            
-    while True:
-        is_signed = typer.prompt("Le contrat est-il signé ? (Oui/Non)")
-        if is_signed.lower() == "oui":
-            is_signed = True
-            break
-        elif is_signed.lower() == "non":
-            is_signed = False
-            break
-        else:
-            typer.echo("Réponse invalide. Répondez par 'Oui' ou 'Non'.")
-
-
-    while True:
-        payment_received = typer.prompt("Paiement reçu ? (Oui/Non)")
-        if payment_received.lower() == "oui":
-            payment_received = True
-            break
-        elif payment_received.lower() == "non":
-            payment_received = False
-            break
-        else:
-            typer.echo("Réponse invalide. Répondez par 'Oui' ou 'Non'.")
+    is_signed = get_boolean_input("Le contrat est-il signé ? (Oui/Non)")
+    payment_received = get_boolean_input("Paiement reçu ? (Oui/Non)")
 
 
     try:
-        contrat = Contrat.create(
+        start_date = get_start_date()
+        end_date = get_end_date(start_date)
+        price = get_price()
+        
+        Contrat.create(
             client=client,
             status=CONTRAT_STATUTS[0], # "EN_COURS" par défault
-            start_date=get_start_date(),
-            end_date=get_end_date(),
-            price=get_price(),
+            start_date=start_date,
+            end_date=end_date,
+            price=price,
             payment_received=payment_received,
             is_signed=is_signed,
             contrat_author=admin_id
@@ -84,8 +61,13 @@ def add_contrat():
         typer.echo(f"Erreur : {e}")
 
      
+
 @app.command()
-def update_contrat(contrat_id: int):
+def update_contrat():
+    """
+    Met à jour un contrat existant dans la base de données.
+    Seul un utilisateur avec le rôle d'administration peut mettre à jour un contrat.
+    """
     user_info = load_user_info()
     admin_id = user_info.get('user_id', None)
 
@@ -97,65 +79,43 @@ def update_contrat(contrat_id: int):
         typer.echo("Accès refusé. Vous devez être dans l'équipe d'administration pour mettre à jour un contrat.")
         return
 
+    while True:
+        contrat_id_str = typer.prompt("ID du contrat à mettre à jour")
+        try:
+            contrat_id = int(contrat_id_str)
+            contrat = Contrat.get_by_id(contrat_id)
+            break
+        except ValueError:
+            typer.echo("L'ID du contrat doit être un nombre entier.")
+        except DoesNotExist:
+            typer.echo("Contrat non trouvé.")
+        except Exception as e:
+            typer.echo(f"Erreur : {e}")
+            
+
+    start_date = get_start_date(str(contrat.start_date))
+    end_date = get_end_date(start_date, str(contrat.end_date))
+    price = get_price()
+
+    is_signed = get_boolean_input("Le contrat est-il signé ? (Oui/Non)", default="Oui" if contrat.is_signed else "Non")
+    payment_received = get_boolean_input("Paiement reçu ? (Oui/Non)", default="Oui" if contrat.payment_received else "Non")
+
     try:
-        contrat = Contrat.get_by_id(contrat_id)
-        
-        if contrat.is_signed:
-            default_is_signed = "Oui"
-        else:
-            default_is_signed = "Non"
-
-
-        while True:
-            is_signed = typer.prompt("Le contrat est-il signé ? (Oui/Non)", default=default_is_signed)
-            if is_signed.lower() == "oui":
-                contrat.is_signed = True
-                break
-            elif is_signed.lower() == "non":
-                contrat.is_signed = False
-                break
-            else:
-                typer.echo("Réponse invalide. Répondez par 'Oui' ou 'Non'.")
-
-        start_date = typer.prompt("Date de début du contrat", default=str(contrat.start_date))
-        end_date = typer.prompt("Date de fin du contrat", default=str(contrat.end_date))
-        price = typer.prompt("Prix du contrat", default=str(contrat.price))
-
-        
-        if contrat.payment_received:
-            default_payment_received = "Oui"
-        else:
-            default_payment_received = "Non"
-        
-        while True:
-            payment_received = typer.prompt("Paiement reçu ? (Oui/Non)", default=default_payment_received)
-            if payment_received.lower() == "oui":
-                contrat.payment_received = True
-                break
-            elif payment_received.lower() == "non":
-                contrat.payment_received = False
-                break
-            else:
-                typer.echo("Réponse invalide. Répondez par 'Oui' ou 'Non'.")
-
-        if start_date:
-            contrat.start_date = start_date
-        if end_date:
-            contrat.end_date = end_date
-        if price:
-            contrat.price = int(price)
-
+        contrat.start_date = start_date
+        contrat.end_date = end_date
+        contrat.price = price
+        contrat.is_signed = is_signed
+        contrat.payment_received = payment_received
         contrat.contrat_author = admin_id
         contrat.save()
-        typer.echo(f"Contrat {contrat_id} mis à jour avec succès.")
         
-    except DoesNotExist:
-        typer.echo("Contrat non trouvé.")
+        typer.echo(f"Contrat {contrat_id} mis à jour avec succès.")
     except Exception as e:
         typer.echo(f"Erreur : {e}")
-        
+
+
 @app.command()
-def delete_contrat(contrat_id: int):
+def delete_contrat():
     """
     Supprime un contrat de la base de données.
     Seul un utilisateur avec le rôle d'administration peut supprimer un contrat.
@@ -171,15 +131,22 @@ def delete_contrat(contrat_id: int):
         typer.echo("Accès refusé. Vous devez être dans l'équipe d'administration pour supprimer un contrat.")
         return
 
-    try:
-        contrat = Contrat.get_by_id(contrat_id)
-        if contrat.contrat_author.id != admin_id:
-            typer.echo("Accès refusé. Vous ne pouvez supprimer que les contrats que vous avez créés.")
-            return
+    while True:
+        contrat_id_str = typer.prompt("ID du contrat à supprimer")
+        try:
+            contrat_id = int(contrat_id_str)
+            contrat = Contrat.get_by_id(contrat_id)
+            break
+        except ValueError:
+            typer.echo("L'ID du contrat doit être un nombre entier.")
+        except DoesNotExist:
+            typer.echo("Contrat non trouvé.")
+        except Exception as e:
+            typer.echo(f"Erreur : {e}")
 
+    try:
         contrat.delete_instance()
         typer.echo(f"Contrat {contrat_id} supprimé avec succès.")
-    except DoesNotExist:
-        typer.echo("Contrat non trouvé.")
     except Exception as e:
         typer.echo(f"Erreur : {e}")
+

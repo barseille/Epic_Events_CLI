@@ -1,6 +1,7 @@
 import typer
 import bcrypt
 import json
+import os
 from crm.models.models import User
 
 app = typer.Typer()
@@ -35,3 +36,30 @@ def save_user_info(user_id, username, email, role):
 def authenticate(email: str = typer.Option(..., prompt="Email"), 
                  password: str = typer.Option(..., prompt="Mot de passe")):
     login(email, password)
+    
+
+def load_user_info():
+    try:
+        with open("config.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def clear_user_info():
+    if os.path.exists("config.json"):
+        os.remove("config.json")
+        typer.echo("Déconnexion réussie.")
+    else:
+        typer.echo("Aucun utilisateur n'est actuellement connecté.")
+
+@app.command()
+def logout():
+    """
+    Déconnecte l'utilisateur actuel.
+    """
+    user_info = load_user_info()
+    if user_info:
+        clear_user_info()
+    else:
+        typer.echo("Aucun utilisateur n'est actuellement connecté.")
+

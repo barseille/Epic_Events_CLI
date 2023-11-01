@@ -5,24 +5,29 @@ from crm.cli_commands.cli_input_validators import get_username, get_email, get_p
 
 app = typer.Typer()
 
+
 @app.command()
 def add_user():
     """Ajoute un nouvel utilisateur."""
-    username = get_username()
-    email = get_email()
+
+    while True:
+        username = get_username()
+        existing_user_with_username = User.select().where(User.username == username).first()
+        if existing_user_with_username:
+            typer.echo("Ce nom d'utilisateur est déjà pris. Veuillez en choisir un autre.")
+        else:
+            break
+
+    while True:
+        email = get_email()
+        existing_user_with_email = User.select().where(User.email == email).first()
+        if existing_user_with_email:
+            typer.echo("Cet email est déjà utilisé par un autre utilisateur. Veuillez en utiliser un différent.")
+        else:
+            break
+
     password = get_password()
     role = get_role()
-
-    # Vérifier si l'utilisateur existe déjà
-    existing_user = User.get_or_none(User.email == email)
-    if existing_user:
-        typer.echo("Un utilisateur avec cet email existe déjà.")
-        return
-
-    existing_user_by_username = User.get_or_none(User.username == username)
-    if existing_user_by_username:
-        typer.echo("Un utilisateur avec ce nom d'utilisateur existe déjà.")
-        return
 
     # Hasher le mot de passe
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())

@@ -26,6 +26,10 @@ def add_client():
 
     while True:
         name = typer.prompt("Nom du client")
+        existing_client_with_name = Client.select().where(Client.name == name).first()
+        if existing_client_with_name:
+            typer.echo("Ce nom de client existe déjà. Veuillez en choisir un autre.")
+            continue
         if name:
             break
         else:
@@ -33,6 +37,10 @@ def add_client():
 
     while True:
         email = typer.prompt("Email du client")
+        existing_client_with_email = Client.select().where(Client.email == email).first()
+        if existing_client_with_email:
+            typer.echo("Cet email est déjà utilisé par un autre client. Veuillez en utiliser un différent.")
+            continue
         if is_valid_email(email):
             break
         else:
@@ -61,7 +69,7 @@ def add_client():
 
 
 @app.command()
-def update_client(client_id: int):
+def update_client():
     """
     Met à jour les informations d'un client existant dans la base de données.
     Seul le commercial qui a créé le client peut mettre à jour ses informations.
@@ -77,39 +85,42 @@ def update_client(client_id: int):
         typer.echo("Accès refusé. Vous devez être un commercial pour mettre à jour un client.")
         return
 
+    while True:
+        client_id_str = typer.prompt("ID du client à mettre à jour")
+        try:
+            client_id = int(client_id_str)
+            client = Client.get_by_id(client_id)
+            if client.commercial_contact.id != commercial_id:
+                typer.echo("Accès refusé. Vous ne pouvez mettre à jour que les clients que vous avez créés.")
+                return
+            break
+        except ValueError:
+            typer.echo("L'ID du client doit être un nombre entier.")
+        except DoesNotExist:
+            typer.echo("Client non trouvé.")
+        except Exception as e:
+            typer.echo(f"Erreur : {e}")
+
+    name = typer.prompt("Nom du client", default=client.name)
+    email = typer.prompt("Email du client", default=client.email)
+    phone = typer.prompt("Numéro de téléphone du client", default=client.phone)
+    company_name = typer.prompt("Nom de l'entreprise du client", default=client.company_name)
+
     try:
-        client = Client.get_by_id(client_id)
-        
-        if client.commercial_contact.id != commercial_id:
-            typer.echo("Accès refusé. Vous ne pouvez mettre à jour que les clients que vous avez créés.")
-            return
-
-        name = typer.prompt("Nom du client", default=client.name)
-        email = typer.prompt("Email du client", default=client.email)
-        phone = typer.prompt("Numéro de téléphone du client", default=client.phone)
-        company_name = typer.prompt("Nom de l'entreprise du client", default=client.company_name)
-
-        if name:
-            client.name = name
-        if email:
-            client.email = email
-        if phone:
-            client.phone = phone
-        if company_name:
-            client.company_name = company_name
-
-        client.commercial_contact = commercial_id  
+        client.name = name
+        client.email = email
+        client.phone = phone
+        client.company_name = company_name
+        client.commercial_contact = commercial_id
         client.save()
         typer.echo(f"Client {client.name} mis à jour avec succès.")
-        
-    except DoesNotExist:
-        typer.echo("Client non trouvé.")
     except Exception as e:
         typer.echo(f"Erreur : {e}")
 
 
+
 @app.command()
-def delete_client(client_id: int):
+def delete_client():
     """
     Supprime un client de la base de données.
     Seul le commercial qui a créé le client peut le supprimer.
@@ -125,19 +136,27 @@ def delete_client(client_id: int):
         typer.echo("Accès refusé. Vous devez être un commercial pour supprimer un client.")
         return
 
-    try:
-        client = Client.get_by_id(client_id)
-        if client.commercial_contact.id != commercial_id:
-            typer.echo("Accès refusé. Vous ne pouvez supprimer que les clients que vous avez créés.")
-            return
+    while True:
+        client_id_str = typer.prompt("ID du client à supprimer")
+        try:
+            client_id = int(client_id_str)
+            client = Client.get_by_id(client_id)
+            if client.commercial_contact.id != commercial_id:
+                typer.echo("Accès refusé. Vous ne pouvez supprimer que les clients que vous avez créés.")
+                return
+            break
+        except ValueError:
+            typer.echo("L'ID du client doit être un nombre entier.")
+        except DoesNotExist:
+            typer.echo("Client non trouvé.")
+        except Exception as e:
+            typer.echo(f"Erreur : {e}")
 
+    try:
         client.delete_instance()
-        typer.echo(f"Client {client.name} supprimé avec succès.")
-    except DoesNotExist:
-        typer.echo("Client non trouvé.")
+        typer.echo(f"Client {client_id} supprimé avec succès.")
     except Exception as e:
         typer.echo(f"Erreur : {e}")
-
 
 
 @app.command()
