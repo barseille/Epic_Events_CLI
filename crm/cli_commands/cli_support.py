@@ -1,7 +1,9 @@
 from crm.cli_commands.cli_permissions import load_user_info
-from crm.models.models import Event
+from crm.cli_commands.cli_input_validators import get_event_start, get_event_end
 from peewee import DoesNotExist
 import typer
+from datetime import datetime
+from crm.models.models import db, Event
 
 
 app = typer.Typer()
@@ -20,38 +22,35 @@ def assign_support_to_event():
         typer.echo("Impossible de récupérer l'ID du membre du support.")
         return
 
-    if user_info.get('role') != 'SUPPORT':
+    if user_info.get('role').upper() != 'SUPPORT':
         typer.echo("Accès refusé. Seuls les membres du support peuvent assigner du support aux événements.")
         return
 
-    while True:
-        event_id = typer.prompt("ID de l'événement")
-        
-        try:
-            event = Event.get_by_id(int(event_id))
-            
-            if event.support_contact is None:
-                event.support_contact = support_id
-                event.save()
-                typer.echo(f"Membre du support {support_id} assigné à l'événement {event_id} avec succès.")
-                break
-            
-            elif event.support_contact.id == support_id:
-                typer.echo(f"Cet événement est déjà assigné à vous même.")
-                break
-            
+    event_id = typer.prompt("ID de l'événement à assigner au support")
+
+    try:
+        event = Event.get_by_id(int(event_id))
+
+        # Vérifie si l'événement est déjà assigné à un membre du support
+        if event.support_contact:
+            if event.support_contact.id == support_id:
+                typer.echo(f"Cet événement est déjà assigné à vous-même.")
             else:
                 typer.echo("Cet événement est déjà assigné à un autre membre du support.")
-                
-        except ValueError:
-            typer.echo("Veuillez entrer un ID d'événement valide (un nombre entier).")
-            
-        except DoesNotExist:
-            typer.echo("Événement non trouvé.")
-            
-        except Exception as e:
-            typer.echo(f"Erreur : {e}")
-            
+        else:
+            event.support_contact = support_id
+            event.save()
+            typer.echo(f"Membre du support {support_id} assigné à l'événement {event_id} avec succès.")
+
+    except ValueError:
+        typer.echo("L'ID de l'événement doit être un nombre entier.")
+        
+    except DoesNotExist:
+        typer.echo("Événement non trouvé.")
+        
+    except Exception as e:
+        typer.echo(f"Erreur lors de l'assignation du support à l'événement : {e}")
+
 
 
 @app.command()
@@ -67,55 +66,62 @@ def update_event():
         typer.echo("Impossible de récupérer l'ID du membre du support.")
         return
 
-    if user_info.get('role') != 'SUPPORT':
+    if user_info.get('role').upper() != 'SUPPORT':
         typer.echo("Accès refusé. Seuls les membres du support peuvent mettre à jour des événements.")
         return
 
-    while True:
-        event_id_str = typer.prompt("ID de l'événement")
-        try:
-            event_id = int(event_id_str)
-            event = Event.get_by_id(event_id)
-            if event.support_contact_id != support_id:
-                typer.echo("Accès refusé. Vous ne pouvez mettre à jour que les événements que vous avez assignés.")
-                return
-            break
-        except ValueError:
-            typer.echo("L'ID de l'événement doit être un nombre entier.")
-        except DoesNotExist:
-            typer.echo("Événement non trouvé.")
-        except Exception as e:
-            typer.echo(f"Erreur : {e}")
-
-
-    start_date = typer.prompt("Date de début de l'événement", default=str(event.start_date))
-    end_date = typer.prompt("Date de fin de l'événement", default=str(event.end_date))
-
-
-    while True:
-        try:
-            attendees_str = typer.prompt("Nombre de participants", default=str(event.attendees))
-            attendees = int(attendees_str)
-            if attendees >= 0:
-                break
-            else:
-                typer.echo("Le nombre de participants doit être un nombre entier positif.")
-        except ValueError:
-            typer.echo("Le nombre de participants doit être un nombre entier.")
-
-    notes = typer.prompt("Notes pour l'événement", default=event.notes, show_default=True)
-
+    event_id_str = typer.prompt("ID de l'événement")
     try:
-        event.start_date = start_date
-        event.end_date = end_date
-        event.attendees = attendees
-        event.notes = notes
-        event.save()
-        typer.echo(f"Événement {event_id} mis à jour avec succès.")
+        event_id = int(event_id_str)
+        event = Event.get_by_id(event_id)
+        
+        # Récupération du contrat associé à l'événement
+        contrat = event.contrat  
+
+        if event.support_contact_id != support_id:
+            typer.echo("Accès refusé. Vous ne pouvez mettre à jour que les événements que vous avez assignés.")
+            return
+        
+    except ValueError:
+        typer.echo("L'ID de l'événement doit être un nombre entier.")
+        return
+    
+    except DoesNotExist:
+        typer.echo("Événement non trouvé.")
+        return
+    
     except Exception as e:
         typer.echo(f"Erreur : {e}")
- 
-        
+        return
+
+    # Utilisation des fonctions de validation pour les dates
+    start_date_str = get_event_start(contrat.start_date.strftime("%Y-%m-%d"), contrat.end_date.strftime("%Y-%m-%d"))
+    end_date_str = get_event_end(start_date_str, contrat.end_date.strftime("%Y-%m-%d"))
+
+    # Demande de mise à jour pour le nombre de participants et les notes
+    attendees_str = typer.prompt("Nombre de participants", default=str(event.attendees))
+    notes_str = typer.prompt("Notes pour l'événement", default=event.notes)
+
+    # Validation du nombre de participants
+    if not attendees_str.isdigit() or int(attendees_str) < 0:
+        typer.echo("Le nombre de participants doit être un nombre entier positif.")
+        return
+
+    # Mise à jour de l'événement dans la base de données
+    try:
+        with db.atomic():
+            event.start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+            event.end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+            event.attendees = int(attendees_str)
+            event.notes = notes_str
+            event.save()
+            typer.echo(f"Événement ID {event_id} mis à jour avec succès.")
+            
+    except Exception as e:
+        typer.echo(f"Erreur lors de la mise à jour de l'événement : {e}")
+
+
+
 @app.command()
 def delete_event():
     """
@@ -129,37 +135,28 @@ def delete_event():
         typer.echo("Impossible de récupérer l'ID du membre du support.")
         return
 
-    if user_info.get('role') != 'SUPPORT':
+    if user_info.get('role').upper() != 'SUPPORT':
         typer.echo("Accès refusé. Seuls les membres du support peuvent supprimer des événements.")
         return
 
-    while True:
-        event_id_str = typer.prompt("ID de l'événement à supprimer")
-        try:
-            event_id = int(event_id_str)
-            event = Event.get_by_id(event_id)
-            if event.support_contact_id != support_id:
-                typer.echo("Accès refusé. Vous ne pouvez supprimer que les événements que vous avez assignés.")
-                return
-            break
-        
-        except ValueError:
-            typer.echo("L'ID de l'événement doit être un nombre entier.")
-            
-        except DoesNotExist:
-            typer.echo("Événement non trouvé.")
-            
-        except Exception as e:
-            typer.echo(f"Erreur : {e}")
-
+    event_id_str = typer.prompt("ID de l'événement à supprimer")
+    
     try:
-        event.delete_instance()
+        event_id = int(event_id_str)
+        event = Event.get_by_id(event_id)
+        if event.support_contact_id != support_id:
+            typer.echo("Accès refusé. Vous ne pouvez supprimer que les événements que vous avez assignés.")
+            return
+        
+        # Suppression de l'événement
+        event.delete_instance()  
         typer.echo(f"Événement {event_id} supprimé avec succès.")
         
+    except ValueError:
+        typer.echo("L'ID de l'événement doit être un nombre entier.")
+        
+    except DoesNotExist:
+        typer.echo("Événement non trouvé.")
+        
     except Exception as e:
-        typer.echo(f"Erreur : {e}")
-
-
-
-
-
+        typer.echo(f"Erreur lors de la suppression de l'événement : {e}")

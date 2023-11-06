@@ -1,5 +1,4 @@
 import json
-import os
 
 
 def load_user_info():
@@ -16,19 +15,32 @@ def is_authenticated():
     return bool(load_user_info())
 
 
-# Fonction pour vérifier si l'utilisateur a le rôle 'Commercial'
+def check_role(role):
+    """
+    Vérifie si l'utilisateur authentifié a le rôle spécifié, insensible à la casse.
+    """
+    user_info = load_user_info()
+    
+    # Convertit les deux chaînes en minuscules avant de les comparer pour l'insensibilité à la casse.
+    return is_authenticated() and user_info.get('role', '').lower() == role.lower()
+
+
 def is_commercial():
-    user = load_user_info()
-    return is_authenticated() and user.get('role') == 'COMMERCIAL'
+    """
+    Vérifie si l'utilisateur authentifié a le rôle 'Commercial'.
+    """
+    return check_role('COMMERCIAL')
 
 
-# Fonction pour vérifier si l'utilisateur a le rôle 'Administration'
 def is_administration():
-    user = load_user_info()
-    return is_authenticated() and user.get('role') == 'ADMINISTRATION'
+    """
+    Vérifie si l'utilisateur authentifié a le rôle 'Administration'.
+    """
+    return check_role('ADMINISTRATION')
 
 
-# Fonction pour vérifier si l'utilisateur a le rôle 'Support'
 def is_support():
-    user = load_user_info()
-    return is_authenticated() and user.get('role') == 'SUPPORT'
+    """
+    Vérifie si l'utilisateur authentifié a le rôle 'Support'.
+    """
+    return check_role('SUPPORT')

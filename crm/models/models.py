@@ -27,8 +27,12 @@ db = PostgresqlDatabase(
     port=DB_PORT
 )
 
-# Base model
+
 class BaseModel(Model):
+    """
+    Classe de base pour tous les modèles.
+    Définit la base de données à utiliser pour tous les modèles qui en héritent.
+    """
     class Meta:
         database = db  
 
@@ -46,6 +50,9 @@ CONTRAT_STATUTS = [
 
 
 class User(BaseModel):
+    """ 
+    Modèle représentant un utilisateur.
+    """
     username = CharField(unique=True)
     email = CharField(unique=True)
     role = CharField(choices=USER_ROLES)
@@ -53,6 +60,10 @@ class User(BaseModel):
     
 
 class Client(BaseModel):
+    """ 
+    Modèle représentant un client.
+    """
+
     name = CharField()
     email = CharField(unique=True)
     phone = CharField(null=True)
@@ -62,10 +73,17 @@ class Client(BaseModel):
     commercial_contact = ForeignKeyField(User, backref='clients')
     
     def save(self, *args, **kwargs):
+        """
+        Sauvegarde l'instance du client en base de données.
+        Met à jour la date de dernière modification à l'heure actuelle avant de sauvegarder.
+        """
         self.last_update_date = datetime.now()
         return super(Client, self).save(*args, **kwargs)
 
 class Contrat(BaseModel):
+    """ 
+    Modèle représentant un contrat client
+    """
     client = ForeignKeyField(Client, backref='contrats')
     status = CharField(choices=CONTRAT_STATUTS, default=CONTRAT_STATUTS[0])
     start_date = DateTimeField()
@@ -76,6 +94,8 @@ class Contrat(BaseModel):
     contrat_author = ForeignKeyField(User, backref='contrats_author')
 
 class Event(BaseModel):
+    """ 
+    Modèle représentant un événement lié à un contrat"""
     contrat = ForeignKeyField(Contrat, backref='events')
     support_contact = ForeignKeyField(User, backref='events', null=True)
     start_date = DateTimeField()
@@ -86,7 +106,12 @@ class Event(BaseModel):
 
 @post_save(sender=Contrat)
 def update_contract_status(model_class, instance, created):
-    # Ce bloc de code ne sera exécuté que si un nouvel objet Contrat a été créé (et non mis à jour).
+    """ 
+    Signal déclenché après la sauvegarde d'un contrat.
+    Met à jour le statut du contrat à 'TERMINE' si la date de fin est passée et que le paiement a été reçu.
+    Ce bloc de code ne sera exécuté que si un nouvel objet Contrat a été créé (et non mis à jour).
+    """
+
     if created:
         end_date = instance.end_date
         today = datetime.now()
@@ -96,4 +121,3 @@ def update_contract_status(model_class, instance, created):
             contrat = instance
             contrat.status = 'TERMINE'
             contrat.save()
-

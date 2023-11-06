@@ -6,6 +6,14 @@ logging.basicConfig(level=logging.INFO)
 
 def create_db():
     try:
+        """
+        Crée et initialise la base de données.
+
+        Cette fonction connecte à la base de données, supprime les tables existantes si elles existent,
+        et crée de nouvelles tables pour les utilisateurs, les clients, les contrats et les événements.
+        Elle gère les exceptions en cas d'erreurs de connexion ou d'opérations avec la base de données
+        et assure la fermeture de la connexion à la fin de l'opération.
+        """
         logging.info("Tentative de connexion à la base de données...")
         db.connect()
         logging.info("Connecté à la base de données.")
@@ -20,6 +28,7 @@ def create_db():
 
     except Exception as e:
         logging.error(f"Une erreur s'est produite : {e}")
+        
     finally:
         logging.info("Fermeture de la base de données.")
         db.close()

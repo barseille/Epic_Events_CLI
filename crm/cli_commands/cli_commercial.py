@@ -1,8 +1,10 @@
-from crm.cli_commands.cli_input_validators import is_valid_email, is_valid_phone,get_start_date, get_end_date
-import typer
-from crm.models.models import Client, Event, Contrat
+from crm.cli_commands.cli_input_validators import get_email, get_phone, is_valid_email, is_valid_phone, get_valid_input, get_event_start, get_event_end
 from crm.cli_commands.cli_permissions import is_commercial, load_user_info
+from crm.models.models import Client, Event, Contrat, db
+from datetime import datetime
 from peewee import DoesNotExist
+import peewee 
+import typer
 
 
 app = typer.Typer()
@@ -24,34 +26,17 @@ def add_client():
         typer.echo("Accès refusé. Vous devez être un commercial pour ajouter un client.")
         return
 
-    while True:
+    name = typer.prompt("Nom du client")
+    while Client.select().where(Client.name == name).exists():
+        typer.echo("Ce nom de client existe déjà. Veuillez en choisir un autre.")
         name = typer.prompt("Nom du client")
-        existing_client_with_name = Client.select().where(Client.name == name).first()
-        if existing_client_with_name:
-            typer.echo("Ce nom de client existe déjà. Veuillez en choisir un autre.")
-            continue
-        if name:
-            break
-        else:
-            typer.echo("Le nom du client ne peut pas être vide.")
 
-    while True:
-        email = typer.prompt("Email du client")
-        existing_client_with_email = Client.select().where(Client.email == email).first()
-        if existing_client_with_email:
-            typer.echo("Cet email est déjà utilisé par un autre client. Veuillez en utiliser un différent.")
-            continue
-        if is_valid_email(email):
-            break
-        else:
-            typer.echo("L'e-mail n'est pas valide.")
+    if not name:
+        typer.echo("Le nom du client ne peut pas être vide.")
+        return
 
-    while True:
-        phone = typer.prompt("Numéro de téléphone du client")
-        if is_valid_phone(phone):
-            break
-        else:
-            typer.echo("Le numéro de téléphone doit avoir au moins 10 chiffres.")
+    email = get_email()
+    phone = get_phone()
 
     company_name = typer.prompt("Nom de l'entreprise du client", default=None)
 
@@ -64,6 +49,7 @@ def add_client():
             commercial_contact=commercial_id
         )
         typer.echo(f"Client {client.name} ajouté avec succès.")
+        
     except Exception as e:
         typer.echo(f"Erreur : {e}")
 
@@ -74,50 +60,65 @@ def update_client():
     Met à jour les informations d'un client existant dans la base de données.
     Seul le commercial qui a créé le client peut mettre à jour ses informations.
     """
-    user_info = load_user_info()
-    commercial_id = user_info.get('user_id', None)
-
-    if commercial_id is None:
-        typer.echo("Impossible de récupérer l'ID du commercial.")
-        return
-
+    # Vérification de l'authentification et du rôle de l'utilisateur
     if not is_commercial():
         typer.echo("Accès refusé. Vous devez être un commercial pour mettre à jour un client.")
         return
 
-    while True:
-        client_id_str = typer.prompt("ID du client à mettre à jour")
-        try:
-            client_id = int(client_id_str)
-            client = Client.get_by_id(client_id)
-            if client.commercial_contact.id != commercial_id:
-                typer.echo("Accès refusé. Vous ne pouvez mettre à jour que les clients que vous avez créés.")
-                return
-            break
-        except ValueError:
-            typer.echo("L'ID du client doit être un nombre entier.")
-        except DoesNotExist:
-            typer.echo("Client non trouvé.")
-        except Exception as e:
-            typer.echo(f"Erreur : {e}")
+    # Récupération de l'ID du commercial
+    user_info = load_user_info()
+    commercial_id = user_info.get('user_id', None)
+    
+    if commercial_id is None:
+        typer.echo("Impossible de récupérer l'ID du commercial.")
+        return
 
-    name = typer.prompt("Nom du client", default=client.name)
-    email = typer.prompt("Email du client", default=client.email)
-    phone = typer.prompt("Numéro de téléphone du client", default=client.phone)
-    company_name = typer.prompt("Nom de l'entreprise du client", default=client.company_name)
-
+    # Demande de l'ID du client via un prompt
+    client_id_str = typer.prompt("Veuillez entrer l'ID du client à mettre à jour")
     try:
-        client.name = name
-        client.email = email
-        client.phone = phone
-        client.company_name = company_name
-        client.commercial_contact = commercial_id
-        client.save()
-        typer.echo(f"Client {client.name} mis à jour avec succès.")
+        client_id = int(client_id_str)
+        client = Client.get_by_id(client_id)
+        
+        if client.commercial_contact.id != commercial_id:
+            typer.echo("Accès refusé. Vous ne pouvez mettre à jour que les clients que vous avez créés.")
+            return
+        
+    except ValueError:
+        typer.echo("L'ID du client doit être un nombre entier.")
+        return
+    
+    except DoesNotExist:
+        typer.echo("Client non trouvé.")
+        return
+    
     except Exception as e:
-        typer.echo(f"Erreur : {e}")
+        typer.echo(f"Erreur lors de la récupération du client : {e}")
+        return
+    
+    # Demande des nouvelles informations du client
+    try:
+        name = typer.prompt("Nom du client", default=client.name)
+        email = get_valid_input("Email du client", is_valid_email, "L'e-mail n'est pas valide.", default=client.email)
+        phone = get_valid_input("Numéro de téléphone du client", is_valid_phone, "Le numéro de téléphone doit avoir au moins 10 chiffres.", default=client.phone)
+        company_name = typer.prompt("Nom de l'entreprise du client", default=client.company_name)
 
-
+        with db.atomic():
+            client.name = name
+            client.email = email
+            client.phone = phone
+            client.company_name = company_name
+            client.save()
+            typer.echo(f"Client {client.name} mis à jour avec succès.")
+            
+    except peewee.IntegrityError as e:
+        typer.echo(f"Erreur d'intégrité des données : {e}")
+        
+    except peewee.PeeweeException as e:
+        typer.echo(f"Erreur de base de données : {e}")
+        
+    except Exception as e:
+        typer.echo(f"Erreur inattendue : {e}")
+        
 
 @app.command()
 def delete_client():
@@ -136,29 +137,29 @@ def delete_client():
         typer.echo("Accès refusé. Vous devez être un commercial pour supprimer un client.")
         return
 
-    while True:
-        client_id_str = typer.prompt("ID du client à supprimer")
-        try:
-            client_id = int(client_id_str)
-            client = Client.get_by_id(client_id)
-            if client.commercial_contact.id != commercial_id:
-                typer.echo("Accès refusé. Vous ne pouvez supprimer que les clients que vous avez créés.")
-                return
-            break
-        except ValueError:
-            typer.echo("L'ID du client doit être un nombre entier.")
-        except DoesNotExist:
-            typer.echo("Client non trouvé.")
-        except Exception as e:
-            typer.echo(f"Erreur : {e}")
+    client_id = get_valid_input(
+        "ID du client à supprimer",
+        lambda x: x.isdigit(),  # Validation simple pour s'assurer que l'entrée est numérique
+        "L'ID du client doit être un nombre entier."
+    )
 
     try:
+        client_id = int(client_id)
+        client = Client.get_by_id(client_id)
+        if client.commercial_contact.id != commercial_id:
+            typer.echo("Accès refusé. Vous ne pouvez supprimer que les clients que vous avez créés.")
+            return
+
         client.delete_instance()
         typer.echo(f"Client {client_id} supprimé avec succès.")
+        
+    except DoesNotExist:
+        typer.echo("Client non trouvé.")
+        
     except Exception as e:
-        typer.echo(f"Erreur : {e}")
+        typer.echo(f"Erreur lors de la suppression du client : {e}")
 
-
+       
 @app.command()
 def add_event():
     """
@@ -176,49 +177,46 @@ def add_event():
         typer.echo("Accès refusé. Vous devez être un commercial pour ajouter un événement.")
         return
 
-    while True:
-        contrat_id = typer.prompt("ID du contrat")
-        try:
-            contrat = Contrat.get_by_id(int(contrat_id))
-            client = Client.get_by_id(contrat.client_id)
-
-            if client.commercial_contact_id != commercial_id:
-                typer.echo("Accès refusé. Vous n'avez pas créé ce client.")
-                return
-
-            if contrat.is_signed and contrat.payment_received:
-                break
-            else:
-                typer.echo("Le contrat doit être signé et le paiement doit être reçu pour ajouter un événement.")
-        except DoesNotExist:
-            typer.echo("Contrat ou client non trouvé.")
-        except Exception as e:
-            typer.echo(f"Erreur : {e}")
-
-    start_date = get_start_date() 
-    end_date = get_end_date()
-
-    while True:
-        try:
-            attendees_str = typer.prompt("Nombre de participants")
-            attendees = int(attendees_str)
-            if attendees >= 0:
-                break
-            else:
-                typer.echo("Le nombre de participants doit être un nombre entier positif.")
-        except ValueError:
-            typer.echo("Le nombre de participants doit être un nombre entier.")
-
-    notes = typer.prompt("Notes pour l'événement", default=None, show_default=False)
-
+    contrat_id = typer.prompt("ID du contrat associé à l'événement")
     try:
+        contrat = Contrat.get_by_id(int(contrat_id))
+        client = Client.get_by_id(contrat.client_id)
+
+        if client.commercial_contact_id != commercial_id:
+            typer.echo("Accès refusé. Vous n'avez pas créé ce client.")
+            return
+
+        if not (contrat.is_signed and contrat.payment_received):
+            typer.echo("Le contrat doit être signé et le paiement reçu pour ajouter un événement.")
+            return
+
+        # Demande des dates de l'événement en s'assurant qu'elles sont dans la période du contrat
+        start_date_event = get_event_start(contrat.start_date.strftime("%Y-%m-%d"), contrat.end_date.strftime("%Y-%m-%d"))
+        end_date_event = get_event_end(start_date_event, contrat.end_date.strftime("%Y-%m-%d"))
+
+        attendees = get_valid_input(
+            "Nombre de participants",
+            lambda x: x.isdigit() and int(x) >= 0,  # Validation pour s'assurer que l'entrée est numérique et positive
+            "Le nombre de participants doit être un nombre entier positif."
+        )
+
+        notes = typer.prompt("Notes pour l'événement", default="", show_default=False)
+
+        # Création de l'événement dans la base de données
         event = Event.create(
             contrat=contrat,
-            start_date=start_date,
-            end_date=end_date,
-            attendees=attendees,
+            start_date=datetime.strptime(start_date_event, "%Y-%m-%d"),
+            end_date=datetime.strptime(end_date_event, "%Y-%m-%d"),
+            attendees=int(attendees),
             notes=notes
         )
-        typer.echo(f"Événement pour le contrat {contrat_id} ajouté avec succès.")
+        typer.echo(f"Événement pour le contrat {contrat_id} ajouté avec succès. ID de l'événement: {event.id}")
+        
+    except ValueError:
+        typer.echo("L'ID du contrat doit être un nombre entier.")
+        
+    except DoesNotExist:
+        typer.echo("Contrat ou client non trouvé.")
+        
     except Exception as e:
-        typer.echo(f"Erreur : {e}")
+        typer.echo(f"Erreur lors de l'ajout de l'événement : {e}")

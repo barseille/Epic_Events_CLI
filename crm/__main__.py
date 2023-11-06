@@ -14,5 +14,15 @@ app.add_typer(commercial_app, name="commercial")
 app.add_typer(administration_app, name="administration")
 app.add_typer(support_app, name="support")
 
+
 if __name__ == "__main__":
+    """
+    Point d'entrée principal de l'application CLI CRM.
+
+    Ce module intègre les sous-commandes des différents domaines :
+    - l'authentification
+    - le commercial
+    - l'administration
+    - le support.
+    """
     app()
