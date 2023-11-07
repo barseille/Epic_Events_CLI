@@ -18,9 +18,7 @@ def setup_database():
     test_database.connect()
     test_database.create_tables([User, Client, Contrat, Event])
 
-    # Insérer les données de test ici si nécessaire
-
-    yield  # Ici, les tests seront exécutés
+    yield
 
     # Nettoyer la base de données après chaque test
     test_database.drop_tables([User, Client, Contrat, Event])
