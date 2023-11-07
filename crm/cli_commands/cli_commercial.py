@@ -1,4 +1,4 @@
-from crm.cli_commands.cli_input_validators import get_email, get_phone, is_valid_email, is_valid_phone, get_valid_input, get_event_start, get_event_end
+from crm.cli_commands.cli_input_validators import get_email, get_phone, is_valid_email, is_valid_phone, get_valid_input, get_event_start, get_event_end, is_valid_id
 from crm.cli_commands.cli_permissions import is_commercial, load_user_info
 from crm.models.models import Client, Event, Contrat, db
 from datetime import datetime
@@ -139,7 +139,7 @@ def delete_client():
 
     client_id = get_valid_input(
         "ID du client à supprimer",
-        lambda x: x.isdigit(),  # Validation simple pour s'assurer que l'entrée est numérique
+        is_valid_id,
         "L'ID du client doit être un nombre entier."
     )
 
@@ -159,7 +159,9 @@ def delete_client():
     except Exception as e:
         typer.echo(f"Erreur lors de la suppression du client : {e}")
 
-       
+def is_valid_attendee_number(input_str):
+    return input_str.isdigit() and int(input_str) >= 0
+     
 @app.command()
 def add_event():
     """
@@ -196,7 +198,7 @@ def add_event():
 
         attendees = get_valid_input(
             "Nombre de participants",
-            lambda x: x.isdigit() and int(x) >= 0,  # Validation pour s'assurer que l'entrée est numérique et positive
+            is_valid_attendee_number,
             "Le nombre de participants doit être un nombre entier positif."
         )
 

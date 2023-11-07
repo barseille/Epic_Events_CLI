@@ -40,7 +40,7 @@ def assign_support_to_event():
         else:
             event.support_contact = support_id
             event.save()
-            typer.echo(f"Membre du support {support_id} assigné à l'événement {event_id} avec succès.")
+            typer.echo(f"Membre du support avec l'id{support_id} assigné à l'événement id{event_id} avec succès.")
 
     except ValueError:
         typer.echo("L'ID de l'événement doit être un nombre entier.")

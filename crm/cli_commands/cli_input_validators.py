@@ -74,7 +74,6 @@ def get_role():
     return get_valid_input("Rôle", is_valid_role, "Le rôle spécifié n'est pas valide.")
 
 
-
 def get_phone():
     """Obtenir un numéro de téléphone valide."""
     
@@ -230,3 +229,6 @@ def get_event_end(start_event_str: str, end_str: str) -> str:
         validation_function,
         "La fin doit être après le début et avant la fin du contrat."
     )
+    
+def is_valid_id(input_str):
+    return input_str.isdigit()

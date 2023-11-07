@@ -9,7 +9,8 @@ from crm.cli_commands.cli_input_validators import (
     get_start_date,
     get_end_date,
     get_price,
-    get_valid_input
+    get_valid_input,
+    is_valid_id
 )
 
 app = typer.Typer()
@@ -155,7 +156,7 @@ def update_contrat():
     except Exception as e:
         typer.echo(f"Erreur inattendue : {e}")
 
-     
+
 @app.command()
 def delete_contrat():
     """
@@ -175,7 +176,7 @@ def delete_contrat():
 
     contrat_id = get_valid_input(
         "ID du contrat à supprimer",
-        lambda x: x.isdigit(),
+        is_valid_id,
         "L'ID du contrat doit être un nombre entier."
     )
 

@@ -116,7 +116,7 @@ def logout():
        
 @app.command()
 def authenticate(email: str = typer.Option(..., prompt="Email"), 
-                 password: str = typer.Option(..., prompt="Mot de passe", hide_input=True)):
+                 password: str = typer.Option(..., prompt="Mot de passe")):
     """
     Authentifie l'utilisateur en demandant l'email et le mot de passe,
     puis en appelant la fonction de connexion.
